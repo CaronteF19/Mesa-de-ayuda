@@ -1,0 +1,253 @@
+{#
+ # ---------------------------------------------------------------------
+ #
+ # GLPI - Gestionnaire Libre de Parc Informatique
+ #
+ # http://glpi-project.org
+ #
+ # @copyright 2015-2025 Teclib' and contributors.
+ # @copyright 2003-2014 by the INDEPNET Development Team.
+ # @licence   https://www.gnu.org/licenses/gpl-3.0.html
+ #
+ # ---------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of GLPI.
+ #
+ # This program is free software: you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation, either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # This program is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ #
+ # ---------------------------------------------------------------------
+ #}
+
+{% set is_vertical = user_pref('page_layout') == 'vertical' %}
+{% set is_horizontal = user_pref('page_layout') == 'horizontal' %}
+{% set is_menu_folded = user_pref('fold_menu') == '1' %}
+{% set rand = random() %}
+
+<ul class="navbar-nav" id="menu_{{ rand }}">
+{% for firstlevel in menu %}
+   {% set firstlevel_active = menu[sector]['title'] == firstlevel['title'] %}
+   {% set firstlevel_shown = (menu[sector]['title'] == firstlevel['title'] and is_vertical and is_menu_folded == false) %}
+   {% set has_subitems = false %}
+   {% if firstlevel['content'] is defined %}
+      {# Are there any items under contents with a page property? #}
+      {% for secondlevel in firstlevel['content'] %}
+         {% if secondlevel['page'] is defined %}
+            {% set has_subitems = true %}
+         {% endif %}
+      {% endfor %}
+   {% endif %}
+   {% if has_subitems %}
+   <li class="nav-item dropdown {{ firstlevel_active ? 'active' : '' }}"
+       title="{{ firstlevel['title'] }}">
+      <a class="nav-link dropdown-toggle {{ firstlevel_active ? 'active' : '' }} {{ firstlevel_shown ? 'show' : '' }}"
+         data-bs-toggle="dropdown" role="button"
+         aria-expanded="{{ firstlevel_shown ? 'true' : 'false' }}">
+         <i class="fa-fw {{ firstlevel['icon'] ?? '' }}"></i>
+         <span class="menu-label">{{ firstlevel['title'] }}</span>
+      </a>
+      <div class="dropdown-menu {{ firstlevel_active and is_vertical != false ? '' : 'animate__animated' }} {{ is_vertical ? 'animate__fadeInLeft' : 'animate__zoomIn' }} {{ firstlevel_shown ? 'show' : '' }}">
+         <h6 class="dropdown-header">{{ firstlevel['title'] }}</h6>
+         <div class="dropdown-menu-columns">
+            <div class="dropdown-menu-column">
+            {% set has_dashboard = firstlevel['default_dashboard'] is defined %}
+            {% if has_dashboard %}
+               <a class="dropdown-item"
+                  href="{{ path(firstlevel['default_dashboard']) }}">
+                  <i class="ti ti-dashboard"></i>
+                  {{ __('Dashboard') }}
+               </a>
+            {% endif %}
+            {% for sublevel in firstlevel['content'] %}
+               {% if sublevel['page'] is defined %}
+               {% set menu_title = sublevel['title'] %}
+               {% if menu_title == 'Problems' %}
+                  {% set menu_title = 'Problemas' %}
+               {% elseif menu_title == 'Changes' %}
+                  {% set menu_title = 'Cambios' %}
+               {% elseif menu_title == 'Tickets' %}
+                  {% set menu_title = 'Casos' %}
+               {% endif %}
+               <a class="dropdown-item {{ menu_active == sublevel['title'] ? 'active' : '' }}"
+                  href="{{ path(sublevel['page']) }}"
+                  accesskey="{{ sublevel['shortcut'] ?? '' }}" title="{{ menu_title }}">
+                  <i class="fa-fw {{ sublevel['icon'] ?? '' }}"></i>
+                  <span class='text-wrap'>
+                     {{ menu_title|shortcut(sublevel['shortcut'] ?? '') }}
+                  </span>
+               </a>
+               {% endif %}
+            {% endfor %}
+            </div>
+         </div>
+      </div>
+   </li>
+   {% elseif firstlevel['default'] is defined and (firstlevel['display'] ?? true) != false %}
+      <li class="nav-item dropdown {{ firstlevel_active ? 'active' : '' }}" data-bs-toggle="tooltip"
+       title="{{ firstlevel['title'] }}">
+         <a class="nav-link" href="{{ path(firstlevel['default']) }}">
+            <i class="fa-fw {{ firstlevel['icon'] ?? '' }}"></i>
+            <span class="menu-label">{{ firstlevel['title'] }}</span>
+         </a>
+      <li>
+   {% endif %}
+{% endfor %}
+</ul>
+
+{% if is_vertical %}
+<script type="text/javascript">
+$(function() {
+   var menuId = '#menu_{{ rand }}';
+   var menuElement = document.getElementById('menu_{{ rand }}');
+   if (!menuElement) return;
+   
+   // Función para cerrar TODOS los dropdowns excepto uno específico
+   function cerrarOtrosDropdowns(dropdownActual) {
+      var todosLosDropdowns = document.querySelectorAll(menuId + ' .nav-link.dropdown-toggle');
+      todosLosDropdowns.forEach(function(dropdown) {
+         if (dropdown !== dropdownActual) {
+            // Forzar cierre usando Bootstrap
+            if (typeof bootstrap !== 'undefined' && bootstrap.Dropdown) {
+               var bsDropdown = bootstrap.Dropdown.getInstance(dropdown);
+               if (bsDropdown) {
+                  bsDropdown.hide();
+               }
+            }
+            
+            // Remover clases y atributos manualmente
+            dropdown.classList.remove('show', 'active');
+            dropdown.setAttribute('aria-expanded', 'false');
+            
+            var navItem = dropdown.closest('.nav-item');
+            if (navItem) {
+               navItem.classList.remove('active');
+               var dropdownMenu = navItem.querySelector('.dropdown-menu');
+               if (dropdownMenu) {
+                  dropdownMenu.classList.remove('show');
+               }
+            }
+         }
+      });
+   }
+   
+   // Escuchar cuando se ABRE un dropdown (después de que Bootstrap termine)
+   menuElement.addEventListener('shown.bs.dropdown', function(event) {
+      var dropdownActual = event.relatedTarget || event.target.closest('.nav-link.dropdown-toggle');
+      cerrarOtrosDropdowns(dropdownActual);
+      
+      // Verificar nuevamente después de un pequeño delay
+      setTimeout(function() {
+         cerrarOtrosDropdowns(dropdownActual);
+      }, 10);
+   }, true);
+   
+   // También escuchar ANTES de que se abra para cerrar otros primero
+   menuElement.addEventListener('show.bs.dropdown', function(event) {
+      var dropdownActual = event.relatedTarget || event.target.closest('.nav-link.dropdown-toggle');
+      cerrarOtrosDropdowns(dropdownActual);
+   }, true);
+   
+   // Escuchar clicks en los dropdown-toggle
+   menuElement.addEventListener('click', function(event) {
+      var clickedElement = event.target.closest('.nav-link.dropdown-toggle');
+      if (clickedElement) {
+         // Cerrar otros inmediatamente
+         cerrarOtrosDropdowns(clickedElement);
+         
+         // Y también después de que Bootstrap procese
+         setTimeout(function() {
+            cerrarOtrosDropdowns(clickedElement);
+         }, 50);
+      }
+   }, true);
+   
+   // prevent menu closes (código original)
+   document.querySelectorAll(menuId + ' > .dropdown').forEach(function(menuDropdown) {
+      menuDropdown.addEventListener('hide.bs.dropdown', function (event) {
+         var orig_event = event.clickEvent;
+         if (typeof orig_event != "undefined"
+             && typeof orig_event.target != "undefined") {
+            // prevent body clicking to hide menu
+            if (!menuElement.contains(orig_event.target)) {
+               event.preventDefault();
+               return;
+            }
+
+            // prevent menu links to close menu (waiting the page redirection)
+            if (orig_event.target.className.indexOf('dropdown-item') !== false) {
+               for (var item of document.querySelectorAll(menuId + ' .dropdown-item')) {
+                  item.classList.remove('active');
+               }
+               orig_event.target.classList.add('active');
+               event.preventDefault();
+            }
+         }
+      });
+   });
+   
+   // VERIFICACIÓN AGRESIVA: Corregir estados cada 100ms
+   setInterval(function() {
+      var dropdownsAbiertos = document.querySelectorAll(menuId + ' .nav-link.dropdown-toggle[aria-expanded="true"], ' + menuId + ' .nav-link.dropdown-toggle.show');
+      
+      if (dropdownsAbiertos.length > 1) {
+         // Mantener solo el PRIMERO, cerrar TODOS los demás
+         var primero = dropdownsAbiertos[0];
+         for (var i = 1; i < dropdownsAbiertos.length; i++) {
+            var dropdown = dropdownsAbiertos[i];
+            
+            // Cerrar usando Bootstrap
+            if (typeof bootstrap !== 'undefined' && bootstrap.Dropdown) {
+               var bsDropdown = bootstrap.Dropdown.getInstance(dropdown);
+               if (bsDropdown) {
+                  bsDropdown.hide();
+               }
+            }
+            
+            // Forzar cierre manual
+            dropdown.classList.remove('active', 'show');
+            dropdown.setAttribute('aria-expanded', 'false');
+            
+            var navItem = dropdown.closest('.nav-item');
+            if (navItem) {
+               navItem.classList.remove('active');
+               var dropdownMenu = navItem.querySelector('.dropdown-menu');
+               if (dropdownMenu) {
+                  dropdownMenu.classList.remove('show');
+               }
+            }
+         }
+      }
+      
+      // También verificar elementos con clase 'show' pero sin aria-expanded="true"
+      var elementosConShow = document.querySelectorAll(menuId + ' .nav-link.dropdown-toggle.show');
+      elementosConShow.forEach(function(dropdown) {
+         if (dropdown.getAttribute('aria-expanded') !== 'true') {
+            dropdown.classList.remove('show', 'active');
+            dropdown.setAttribute('aria-expanded', 'false');
+            var navItem = dropdown.closest('.nav-item');
+            if (navItem) {
+               navItem.classList.remove('active');
+               var dropdownMenu = navItem.querySelector('.dropdown-menu');
+               if (dropdownMenu) {
+                  dropdownMenu.classList.remove('show');
+               }
+            }
+         }
+      });
+   }, 100);
+
+});
+</script>
+{% endif %}
